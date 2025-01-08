@@ -1,0 +1,68 @@
+import os
+from pathlib import Path
+from typing import Generator
+
+class FileSystemOverlay:
+    """
+    A class implementing a file system overlay that allows read operations
+    from a base directory and redirects write operations to an overlay directory.
+    """
+    def __init__(self, base_dir: str, overlay_dir: str):
+        """
+        Initialize the file system overlay.
+
+        :param base_dir: Path to the base directory.
+        :param overlay_dir: Path to the overlay directory.
+        """
+        self.base_dir = Path(base_dir).resolve()
+        self.overlay_dir = Path(overlay_dir).resolve()
+        self.overlay_dir.mkdir(parents=True, exist_ok=True)
+
+    def open(self, path: str, mode: str = 'r'):
+        """
+        Open a file for reading or writing, using the overlay system.
+
+        :param path: Relative file path to open.
+        :param mode: File open mode ('r', 'w', 'a', etc.).
+        :return: A file object managed by a context manager.
+        """
+        target_path = Path(path)
+        overlay_path = self.overlay_dir / target_path
+        base_path = self.base_dir / target_path
+
+        if 'r' in mode:
+            # For read mode, try the overlay first, then fallback to base
+            if overlay_path.exists():
+                return overlay_path.open(mode)
+            elif base_path.exists():
+                return base_path.open(mode)
+            else:
+                raise FileNotFoundError(f"File not found in either overlay or base: {path}")
+
+        if any(m in mode for m in ('w', 'a')):
+            # For write/append modes, ensure the directory structure exists in the overlay
+            overlay_path.parent.mkdir(parents=True, exist_ok=True)
+            return overlay_path.open(mode)
+
+        raise ValueError(f"Unsupported mode: {mode}")
+
+    def list_dir(self, path: str) -> Generator[str, None, None]:
+        """
+        List files and directories, combining contents from base and overlay.
+
+        :param path: Relative directory path to list.
+        :yield: File and directory names (unique, sorted alphabetically).
+        """
+        target_path = Path(path)
+        overlay_path = self.overlay_dir / target_path
+        base_path = self.base_dir / target_path
+
+        overlay_items = set(overlay_path.iterdir()) if overlay_path.exists() else set()
+        base_items = set(base_path.iterdir()) if base_path.exists() else set()
+
+        # Combine and yield unique names
+        all_items = {item.name for item in overlay_items.union(base_items)}
+        for name in sorted(all_items):
+            yield name
+
+
