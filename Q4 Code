@@ -1,0 +1,29 @@
+import functools
+
+def cache_function(func):
+    """
+    A decorator to cache the results of a function for given arguments.
+    """
+    cache = {}
+
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        #  a unique key using the arguments
+        key = (args, frozenset(kwargs.items()))
+        if key not in cache:
+            # Compute the result and store it in the cache
+            cache[key] = func(*args, **kwargs)
+        return cache[key]
+    
+    return wrapper
+
+# Example usage:
+@cache_function
+def expensive_function(x, y):
+    print(f"Computing {x} + {y}...")
+    return x + y
+
+# Test the caching
+print(expensive_function(1, 2))  # Computes and caches the result
+print(expensive_function(1, 2))  # Returns the cached result
+print(expensive_function(3, 4))  # Computes and caches the result
